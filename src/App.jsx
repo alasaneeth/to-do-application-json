@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { arrayMove } from "@dnd-kit/sortable";
+
 
 const MOTIVATIONS = [
   { title: "வாழ்க்கை உன்னால் மாறும்! 🎉", sub: "You are making a difference!" },
@@ -327,6 +329,17 @@ export default function App() {
     setMotivation(m); setConfetti(true);
     setTimeout(() => { setConfetti(false); setMotivation(null); }, 4000);
   };
+
+  const handleDragEnd = (event) => {
+  const { active, over } = event;
+  if (!over || active.id === over.id) return;
+
+  setTasks((prev) => {
+    const oldIndex = prev.findIndex((t) => t.id === active.id);
+    const newIndex = prev.findIndex((t) => t.id === over.id);
+    return arrayMove(prev, oldIndex, newIndex);
+  });
+};
 
   const openAdd = () => { setForm({ title:"", desc:"", type:"daily", status:"pending" }); setEditId(null); setShowModal(true); };
   const openEdit = task => { setForm({ title:task.title, desc:task.desc||"", type:task.type, status:task.status }); setEditId(task.id); setShowModal(true); };
