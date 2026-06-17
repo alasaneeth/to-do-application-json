@@ -1,4 +1,18 @@
 import { useState, useEffect, useRef } from "react";
+import { arrayMove } from "@dnd-kit/sortable";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 const MOTIVATIONS = [
   { title: "வாழ்க்கை உன்னால் மாறும்! 🎉", sub: "You are making a difference!" },
@@ -97,7 +111,7 @@ function TaskCard({ task, onStatus, onEdit, onDelete }) {
   return (
     <div style={{
       background: "#111118",
-      border: `1px solid ${isDone ? "#1e1e2e" : "#1e1e2e"}`,
+      border: "1px solid #1e1e2e",
       borderRadius: 16,
       overflow: "hidden",
       transition: "transform 0.18s, box-shadow 0.18s, border-color 0.18s",
@@ -127,8 +141,8 @@ function TaskCard({ task, onStatus, onEdit, onDelete }) {
           </div>
           <div style={{ display:"flex", gap: 4, flexShrink: 0 }}>
             {[
-              { icon:"✏️", title:"Edit", onClick: () => onEdit(task), danger: false },
-              { icon:"🗑️", title:"Delete", onClick: () => onDelete(task.id), danger: true },
+              { icon:"✏️", title:"Edit",   onClick: () => onEdit(task),    danger: false },
+              { icon:"🗑️", title:"Delete", onClick: () => onDelete(task.id), danger: true  },
             ].map((btn, i) => (
               <button key={i} title={btn.title} onClick={btn.onClick}
                 style={{
@@ -183,6 +197,48 @@ function TaskCard({ task, onStatus, onEdit, onDelete }) {
   );
 }
 
+/* ── Sortable Task Card ── */
+function SortableTaskCard(props) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: props.task.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes}>
+      {/* Drag handle — only this area is draggable */}
+      <div
+        {...listeners}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+          padding: "6px 16px 2px",
+          cursor: isDragging ? "grabbing" : "grab",
+          color: "#2a2a3e",
+          fontSize: 13,
+          userSelect: "none",
+          letterSpacing: 2,
+        }}
+        title="Drag to reorder"
+      >
+        ⠿⠿
+      </div>
+      <TaskCard {...props} />
+    </div>
+  );
+}
+
 /* ── Modal ── */
 function Modal({ form, setForm, onSave, onClose, isEdit }) {
   const inputStyle = {
@@ -232,8 +288,8 @@ function Modal({ form, setForm, onSave, onClose, isEdit }) {
 
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap: 12, marginBottom: 22 }}>
           {[
-            { label:"Task Type", key:"type", opts:[["daily","📅 Daily"],["weekly","📆 Weekly"],["monthly","🗓️ Monthly"]] },
-            { label:"Status", key:"status", opts:[["pending","⏳ Pending"],["inprogress","⚡ In Progress"],["done","✅ Done"]] },
+            { label:"Task Type", key:"type",   opts:[["daily","📅 Daily"],["weekly","📆 Weekly"],["monthly","🗓️ Monthly"]] },
+            { label:"Status",    key:"status", opts:[["pending","⏳ Pending"],["inprogress","⚡ In Progress"],["done","✅ Done"]] },
           ].map(({ label, key, opts }) => (
             <div key={key}>
               <label style={labelStyle}>{label}</label>
@@ -266,7 +322,6 @@ function Modal({ form, setForm, onSave, onClose, isEdit }) {
   );
 }
 
-/* ── Main App ── */
 /* ── Reset helpers ── */
 function getTodayKey()  { const d = new Date(); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; }
 function getWeekKey()   { const d = new Date(); const day = d.getDay(); const diff = day === 0 ? -6 : 1 - day; const monday = new Date(d); monday.setDate(d.getDate() + diff); return `${monday.getFullYear()}-${monday.getMonth()}-${monday.getDate()}`; }
@@ -294,6 +349,7 @@ function applyAutoResets(tasks) {
   );
 }
 
+/* ── Main App ── */
 export default function App() {
   const [tasks, setTasks] = useState(() => {
     try {
@@ -301,17 +357,18 @@ export default function App() {
       return applyAutoResets(saved);
     } catch { return []; }
   });
-  const [filterType, setFilterType] = useState("all");
+  const [filterType,   setFilterType]   = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
-  const [showModal, setShowModal] = useState(false);
-  const [editId, setEditId] = useState(null);
-  const [confetti, setConfetti] = useState(false);
-  const [motivation, setMotivation] = useState(null);
+  const [showModal,    setShowModal]    = useState(false);
+  const [editId,       setEditId]       = useState(null);
+  const [confetti,     setConfetti]     = useState(false);
+  const [motivation,   setMotivation]   = useState(null);
   const [form, setForm] = useState({ title:"", desc:"", type:"daily", status:"pending" });
+
+  const sensors = useSensors(useSensor(PointerSensor));
 
   useEffect(() => { localStorage.setItem("taskflow_v2", JSON.stringify(tasks)); }, [tasks]);
 
-  /* Check resets whenever tab becomes visible again */
   useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState === "visible") {
@@ -328,8 +385,19 @@ export default function App() {
     setTimeout(() => { setConfetti(false); setMotivation(null); }, 4000);
   };
 
-  const openAdd = () => { setForm({ title:"", desc:"", type:"daily", status:"pending" }); setEditId(null); setShowModal(true); };
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setTasks(prev => {
+      const oldIndex = prev.findIndex(t => t.id === active.id);
+      const newIndex = prev.findIndex(t => t.id === over.id);
+      return arrayMove(prev, oldIndex, newIndex);
+    });
+  };
+
+  const openAdd  = () => { setForm({ title:"", desc:"", type:"daily", status:"pending" }); setEditId(null); setShowModal(true); };
   const openEdit = task => { setForm({ title:task.title, desc:task.desc||"", type:task.type, status:task.status }); setEditId(task.id); setShowModal(true); };
+
   const saveTask = () => {
     if (!form.title.trim()) return;
     if (editId) {
@@ -342,38 +410,40 @@ export default function App() {
     }
     setShowModal(false);
   };
+
   const updateStatus = (id, status) => {
     const old = tasks.find(t => t.id === id);
     setTasks(p => p.map(t => t.id === id ? { ...t, status } : t));
     if (old?.status !== "done" && status === "done") celebrate();
   };
+
   const deleteTask = id => setTasks(p => p.filter(t => t.id !== id));
 
   const filtered = tasks.filter(t =>
-    (filterType === "all" || t.type === filterType) &&
+    (filterType   === "all" || t.type   === filterType) &&
     (filterStatus === "all" || t.status === filterStatus)
   );
 
-  const total = tasks.length;
-  const done = tasks.filter(t => t.status === "done").length;
+  const total      = tasks.length;
+  const done       = tasks.filter(t => t.status === "done").length;
   const inprogress = tasks.filter(t => t.status === "inprogress").length;
-  const pending = tasks.filter(t => t.status === "pending").length;
-  const progress = total > 0 ? Math.round((done / total) * 100) : 0;
+  const pending    = tasks.filter(t => t.status === "pending").length;
+  const progress   = total > 0 ? Math.round((done / total) * 100) : 0;
 
   const typeTabs = [
-    { v:"all", l:"All" },
-    { v:"daily", l:"📅 Daily" },
-    { v:"weekly", l:"📆 Weekly" },
+    { v:"all",     l:"All" },
+    { v:"daily",   l:"📅 Daily" },
+    { v:"weekly",  l:"📆 Weekly" },
     { v:"monthly", l:"🗓️ Monthly" },
   ];
   const statusTabs = [
-    { v:"all", l:"All Status" },
-    { v:"pending", l:"⏳ Pending" },
+    { v:"all",        l:"All Status" },
+    { v:"pending",    l:"⏳ Pending" },
     { v:"inprogress", l:"⚡ In Progress" },
-    { v:"done", l:"✅ Done" },
+    { v:"done",       l:"✅ Done" },
   ];
 
-  const pillBase = { fontSize: 12, padding:"6px 14px", borderRadius: 100, border:"1px solid #2a2a3e", background:"transparent", color:"#4b5563", cursor:"pointer", whiteSpace:"nowrap", transition:"all 0.15s", fontFamily:"inherit", fontWeight: 500 };
+  const pillBase   = { fontSize: 12, padding:"6px 14px", borderRadius: 100, border:"1px solid #2a2a3e", background:"transparent", color:"#4b5563", cursor:"pointer", whiteSpace:"nowrap", transition:"all 0.15s", fontFamily:"inherit", fontWeight: 500 };
   const pillActive = { ...pillBase, background:"#1a1a2e", border:"1px solid #3a3a5e", color:"#e2e8f0" };
 
   const statCards = [
@@ -392,9 +462,9 @@ export default function App() {
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: #2a2a3e; border-radius: 4px; }
         select option { background: #111118; color: #e2e8f0; }
-        @keyframes cardIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes cardIn  { from { opacity:0; transform:translateY(8px); }          to { opacity:1; transform:translateY(0); } }
         @keyframes modalIn { from { opacity:0; transform:translateY(12px) scale(0.97); } to { opacity:1; transform:none; } }
-        @keyframes popIn { from { opacity:0; transform:scale(0.8); } to { opacity:1; transform:scale(1); } }
+        @keyframes popIn   { from { opacity:0; transform:scale(0.8); }               to { opacity:1; transform:scale(1); } }
         @keyframes shimmer { 0%,100% { opacity:0.6; } 50% { opacity:1; } }
       `}</style>
 
@@ -488,11 +558,29 @@ export default function App() {
                 )}
               </div>
             ) : (
-              filtered.map(task => (
-                <TaskCard key={task.id} task={task} onStatus={updateStatus} onEdit={openEdit} onDelete={deleteTask} />
-              ))
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={filtered.map(t => t.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {filtered.map(task => (
+                    <SortableTaskCard
+                      key={task.id}
+                      task={task}
+                      onStatus={updateStatus}
+                      onEdit={openEdit}
+                      onDelete={deleteTask}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
             )}
           </div>
+
         </div>
       </div>
 
