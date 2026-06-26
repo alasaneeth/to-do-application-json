@@ -13,7 +13,7 @@ export default function App() {
   const {
     filtered, total, done, inprogress, pending,
     confetti, motivation,
-    showModal, form, setForm,
+    showModal, form, setForm, editId,
     filterType,   setFilterType,
     filterStatus, setFilterStatus,
     searchQuery,  setSearchQuery,
