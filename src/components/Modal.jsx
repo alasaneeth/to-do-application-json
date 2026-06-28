@@ -108,12 +108,7 @@ export default function Modal({ form, setForm, onSave, onClose, isEdit }) {
         />
 
         {/* Type + Status */}
-        <div
-          style={{
-            display: "grid", gridTemplateColumns: "1fr 1fr",
-            gap: 12, marginBottom: 22,
-          }}
-        >
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
           {[
             {
               label: "Task Type", key: "type",
@@ -148,6 +143,26 @@ export default function Modal({ form, setForm, onSave, onClose, isEdit }) {
             </div>
           ))}
         </div>
+
+        {/* Due Date */}
+        <label style={labelStyle}>
+          Due Date{" "}
+          <span style={{ color: "#374151", textTransform: "none", letterSpacing: 0 }}>
+            (optional)
+          </span>
+        </label>
+        <input
+          type="date"
+          style={{
+            ...inputStyle,
+            marginBottom: 22,
+            colorScheme: "dark",
+          }}
+          value={form.dueDate || ""}
+          onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
+          onFocus={(e) => (e.target.style.borderColor = "#60a5fa")}
+          onBlur={(e) => (e.target.style.borderColor = "#2a2a3e")}
+        />
 
         {/* Actions */}
         <div style={{ display: "flex", gap: 10 }}>
