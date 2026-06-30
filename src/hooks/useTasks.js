@@ -1,7 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { arrayMove } from "@dnd-kit/sortable";
 import { MOTIVATIONS } from "../constants/meta";
 import { applyAutoResets } from "../utils/resetHelpers";
+
+const UNDO_WINDOW_MS = 5000;
 
 export default function useTasks() {
   const [tasks, setTasks] = useState(() => {
@@ -20,6 +22,10 @@ export default function useTasks() {
   const [motivation,   setMotivation]   = useState(null);
   const [form, setForm] = useState({ title: "", desc: "", type: "daily", status: "pending", dueDate: "" });
 
+  /* ── Undo delete ── */
+  const [pendingDelete, setPendingDelete] = useState(null); // { task, index }
+  const undoTimer = useRef(null);
+
   /* ── Persist to localStorage ── */
   useEffect(() => {
     localStorage.setItem("taskflow_v2", JSON.stringify(tasks));
@@ -34,6 +40,11 @@ export default function useTasks() {
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
+  /* ── Cleanup timer on unmount ── */
+  useEffect(() => {
+    return () => { if (undoTimer.current) clearTimeout(undoTimer.current); };
   }, []);
 
   /* ── Celebrate ── */
@@ -90,7 +101,32 @@ export default function useTasks() {
     if (old?.status !== "done" && status === "done") celebrate();
   };
 
-  const deleteTask = (id) => setTasks((p) => p.filter((t) => t.id !== id));
+  /* ── Soft delete with undo ── */
+  const deleteTask = (id) => {
+    const index = tasks.findIndex((t) => t.id === id);
+    if (index === -1) return;
+    const task = tasks[index];
+
+    setTasks((p) => p.filter((t) => t.id !== id));
+    setPendingDelete({ task, index });
+
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    undoTimer.current = setTimeout(() => {
+      setPendingDelete(null);
+    }, UNDO_WINDOW_MS);
+  };
+
+  const undoDelete = () => {
+    if (!pendingDelete) return;
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+
+    setTasks((p) => {
+      const next = [...p];
+      next.splice(pendingDelete.index, 0, pendingDelete.task);
+      return next;
+    });
+    setPendingDelete(null);
+  };
 
   /* ── Derived stats ── */
   const filtered = tasks.filter((t) => {
@@ -113,12 +149,13 @@ export default function useTasks() {
     filtered, total, done, inprogress, pending,
     confetti, motivation,
     showModal, form, setForm, editId,
-    filterType,  setFilterType,
+    filterType,   setFilterType,
     filterStatus, setFilterStatus,
-    searchQuery, setSearchQuery,
+    searchQuery,  setSearchQuery,
+    pendingDelete,
     /* actions */
     openAdd, openEdit, closeModal,
-    saveTask, updateStatus, deleteTask,
+    saveTask, updateStatus, deleteTask, undoDelete,
     handleDragEnd,
   };
 }
