@@ -8,6 +8,7 @@ import FilterTabs from "./components/FilterTabs";
 import SearchBar from "./components/SearchBar";
 import TaskList from "./components/TaskList";
 import Modal from "./components/Modal";
+import UndoToast from "./components/UndoToast";
 
 export default function App() {
   const {
@@ -17,8 +18,9 @@ export default function App() {
     filterType,   setFilterType,
     filterStatus, setFilterStatus,
     searchQuery,  setSearchQuery,
+    pendingDelete,
     openAdd, openEdit, closeModal,
-    saveTask, updateStatus, deleteTask,
+    saveTask, updateStatus, deleteTask, undoDelete,
     handleDragEnd,
   } = useTasks();
 
@@ -54,6 +56,8 @@ export default function App() {
           isEdit={!!editId}
         />
       )}
+
+      <UndoToast data={pendingDelete?.task} onUndo={undoDelete} />
     </>
   );
 }
